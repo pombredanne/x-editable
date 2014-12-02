@@ -17,7 +17,8 @@ $(function(){
 </script>
 **/
 (function ($) {
-
+    "use strict";
+    
     var Textarea = function (options) {
         this.init('textarea', options, Textarea.defaults);
     };
@@ -37,8 +38,10 @@ $(function(){
                 }
             });
         },
-
-        value2html: function(value, element) {
+        
+       //using `white-space: pre-wrap` solves \n  <--> BR conversion very elegant!
+       /* 
+       value2html: function(value, element) {
             var html = '', lines;
             if(value) {
                 lines = value.split("\n");
@@ -49,7 +52,7 @@ $(function(){
             }
             $(element).html(html);
         },
-
+       
         html2value: function(html) {
             if(!html) {
                 return '';
@@ -68,7 +71,7 @@ $(function(){
             }
             return lines.join("\n");
         },
-
+         */
         activate: function() {
             $.fn.editabletypes.text.prototype.activate.call(this);
         }

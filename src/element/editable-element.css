@@ -13,10 +13,10 @@ a.editable-click.editable-disabled:hover {
    border-bottom: none;
 }
 
-.editable-empty, .editable-empty:hover{
+.editable-empty, .editable-empty:hover, .editable-empty:focus{
   font-style: italic; 
   color: #DD1144;  
-  border-bottom: none;
+  /* border-bottom: none; */
   text-decoration: none;
 }
 
@@ -26,6 +26,14 @@ a.editable-click.editable-disabled:hover {
 
 .editable-unsaved:after {
 /*    content: '*'*/
+}
+
+.editable-bg-transition {
+  -webkit-transition: background-color 1400ms ease-out;
+  -moz-transition: background-color 1400ms ease-out;
+  -o-transition: background-color 1400ms ease-out;
+  -ms-transition: background-color 1400ms ease-out;
+  transition: background-color 1400ms ease-out;  
 }
 
 /*see https://github.com/vitalets/x-editable/issues/139 */

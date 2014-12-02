@@ -1,9 +1,8 @@
-.editable-container {
+.editable-container.editable-popup {
     max-width: none !important; /* without this rule poshytip/tooltip does not stretch */
 }  
 
 .editable-container.popover {
-/*   width: 300px;*/  /* debug */
     width: auto; /* without this rule popover does not stretch */
 }
 
@@ -18,4 +17,5 @@
 
 .editable-container.ui-widget {
    font-size: inherit;  /* jqueryui widget font 1.1em too big, overwrite it */
+   z-index: 9990; /* should be less than select2 dropdown z-index to close dropdown first when click */
 }

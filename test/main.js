@@ -1,9 +1,14 @@
+/*
+Loads all required files.
+Calls loader.js to get x-editable files with dependencies.
+*/
+
 //detect version of jquery from url param, e.g. 'jquery=1.7.2' 
 var jqver = decodeURIComponent((new RegExp('[?|&]' + 'jquery' + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null;
     jqurl = jqver ? "http://code.jquery.com/jquery-"+jqver+".min.js" : "libs/jquery/jquery-1.9.1.min.js";
     
 require(["loader", jqurl], function(loader) {
-
+    
     var config = loader.getConfig("../src"),
         params = loader.getParams();
     
@@ -22,6 +27,12 @@ require(["loader", jqurl], function(loader) {
         $.support.transition = false;
         $.fn.editable.defaults.mode = params.c === 'inline' ? 'inline' : 'popup';           
         
+        //for some reason qunit's empty of fixture does not call element's `destryed` event
+        //and container remains open
+        QUnit.testDone(function( details ) {
+            $('#qunit-fixture').empty();
+        });        
+        
         QUnit.load();
         QUnit.start();
     });
@@ -30,13 +41,26 @@ require(["loader", jqurl], function(loader) {
         var custom;
         
         switch(params.f) {
-            case 'bootstrap':
+            case 'bootstrap2':
               custom = ['test/unit/datefield', 
                         'test/unit/date', 
+                        'test/unit/datetimefield', 
+                        'test/unit/datetime', 
                         'test/unit/wysihtml5',
                         'test/unit/typeahead'
                         ];
               break;
+
+            case 'bootstrap3':
+              custom = [
+                        'test/unit/datefield', 
+                        'test/unit/date', 
+                        'test/unit/datetimefield', 
+                        'test/unit/datetime', 
+                        //'test/unit/wysihtml5'
+                        'test/unit/typeaheadjs'
+                       ];
+              break;              
                
             default:  
               custom = ['test/unit/dateuifield', 'test/unit/dateui'];

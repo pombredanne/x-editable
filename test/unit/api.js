@@ -66,31 +66,53 @@ $(function () {
         equal(values.comment, '', 'textarea empty value') ;
         ok(!('sex' in values), 'select value not present') ;
         ok(!('dob' in values), 'date value not present') ;
-     });    
+     }); 
      
-    test("'init' event", function () {
-        expect(1);
-        var e = $('<a href="#" data-pk="1" data-url="post.php" data-name="text1">abc</a>').appendTo('#qunit-fixture');
+    test("getValue with isSingle = true", function () {
+        var v = '123', 
+          e = $(
+          '<a href="#" data-type="text" id="username">'+v+'</a>' + 
+          '<a href="#" data-type="textarea" id="comment">456</a>' 
+         ).appendTo('#qunit-fixture').editable();
+
+        //check get value
+        var value = e.editable('getValue', true);
+        equal(value, v, 'value ok');
+     });        
+     
+    asyncTest("'init' event", function () {
+        expect(3);
+        var e = $('<a href="#" data-pk="1" data-url="post.php" data-name="text1">abc</a>').appendTo(fx);
         
-        e.on('init', function(e, editable) {
+        e.on('init', function(event, editable) {
+             equal(e[0], this, 'scope ok');
              equal(editable.value, 'abc', 'init triggered, value correct');
+             setTimeout(function() {
+               equal(editable, e.data('editable'), 'editable param ok');
+               e.remove();    
+               start();  
+             }, timeout); 
         });
 
         e.editable();
     });      
   
      asyncTest("events: shown / hidden (reason: cancel, onblur, nochange, manual)", function () {
-        expect(15);
         var val = '1', test_reason, 
             e = $('<a href="#" data-pk="1" data-type="select" data-url="post.php" data-name="text" data-value="'+val+'"></a>').appendTo(fx);
         
-        e.on('shown', function(event) {
-             var editable = $(this).data('editable');
-             equal(editable.value, val, 'shown triggered, value correct');
+        e.on('shown', function(event, edt) {
+            //distinguish from native bootstrap popover event
+            if(arguments.length != 2) return;
+            var editable = $(this).data('editable');
+            equal(editable.value, val, 'shown triggered, value correct');
+            equal(edt, editable, 'edt param correct');
         });
         
         e.on('hidden', function(event, reason) {
-             ok((reason === test_reason) || (test_reason === 'manual' && reason === undefined), 'hidden triggered, reason ok'); 
+            //distinguish from native bootstrap popover event
+            if(arguments.length != 2) return;
+            ok((reason === test_reason) || (test_reason === 'manual' && reason === undefined), 'hidden triggered, reason ok'); 
         });            
         
         e.editable({
@@ -104,28 +126,28 @@ $(function () {
              
              test_reason = 'cancel'
              p.find('.editable-cancel').click();  //cancel
-             ok(!p.is(':visible'), 'popover closed');
+             ok(!p.is(':visible'), 'popover closed '+test_reason);
 
              test_reason = 'onblur'            
              e.click();
              p = tip(e);
-             ok(p.is(':visible'), 'popover shown');
+             ok(p.is(':visible'), 'popover shown '+test_reason);
              e.parent().click();
-             ok(!p.is(':visible'), 'popover closed');
+             ok(!p.is(':visible'), 'popover closed '+test_reason);
              
              test_reason = 'nochange'            
              e.click();
              p = tip(e);
-             ok(p.is(':visible'), 'popover shown');
+             ok(p.is(':visible'), 'popover shown '+test_reason);
              p.find('form').submit();  //submit value without changes
-             ok(!p.is(':visible'), 'popover closed');             
+             ok(!p.is(':visible'), 'popover closed '+test_reason);             
              
              test_reason = 'manual'            
              e.click();
              p = tip(e);
-             ok(p.is(':visible'), 'popover shown');
+             ok(p.is(':visible'), 'popover shown '+test_reason);
              e.editable('hide');
-             ok(!p.is(':visible'), 'popover closed');             
+             ok(!p.is(':visible'), 'popover closed '+test_reason);             
              
              e.remove();    
              start();  
@@ -134,15 +156,18 @@ $(function () {
      });    
      
      asyncTest("event: save / hidden (reason: save)", function () {
-        expect(2);
+        expect(3);
         var val = '1',
             e = $('<a href="#" data-pk="1" data-type="select" data-url="post.php" data-name="text" data-value="'+val+'"></a>').appendTo(fx);
         
         e.on('save', function(event, params) {
             equal(params.newValue, 2, 'save triggered, value correct');
+            equal(params.submitValue, '2', 'submitValue property correct');
         });
         
         e.on('hidden', function(event, reason) {
+            //distinguish from native bootstrap popover event
+            if(arguments.length != 2) return;            
             equal(reason, 'save', 'hidden triggered, reason ok'); 
         });         
         
@@ -160,6 +185,33 @@ $(function () {
              start();  
         }, timeout);                                        
      });   
+     
+	 asyncTest("hide when saving value", function () {
+        var newVal = 2,
+            e = $('<a href="#" data-pk="1" data-type="select" data-url="post.php" data-name="text" data-value="1"></a>')
+            .appendTo(fx)    
+	        .editable({
+	            source: groupsArr
+	        });
+        
+        e.click();
+        var p = tip(e);
+		p.find('select').val(2);
+        p.find('form').submit(); 
+        
+        e.parent().click();
+        
+        ok(p.is(':visible'), 'popover still visible');
+                
+        setTimeout(function() {
+             equal(e.data('editable').value, newVal, 'new value saved');
+             ok(!p.is(':visible'), 'popover closed');
+              
+             e.remove();    
+             start();  
+        }, timeout);                                        
+        
+     });      
      
      test("show/hide/toggle methods", function () {
         var e = $('<a href="#" data-pk="1" data-url="post.php" data-name="text1">abc</a>').appendTo('#qunit-fixture').editable();
@@ -317,7 +369,7 @@ $(function () {
         
      });       
      
-     asyncTest("'submit' method: success", function () {
+     asyncTest("'submit' method: success (multiple elems)", function () {
         var ev1 = 'ev1',
             e1v = 'e1v',
             pk = 123,
@@ -351,6 +403,57 @@ $(function () {
         
      }); 
      
+     asyncTest("'submit' method: success (single elem)", function () {
+        expect(5);
+        
+        var ev1 = 'ev1',
+            pk = 123,
+            e = $('<a href="#" class="new" data-type="text" data-pk="'+pk+'" data-url="submit-single" data-name="text">'+ev1+'</a>').appendTo(fx).editable({
+               success: function(data) {
+                   equal(data, 'response-body', 'response body ok');
+               }             
+            });
+
+        $.mockjax({
+            url: 'submit-single',
+            response: function(settings) {
+                equal(settings.data.name, 'text', 'name ok');
+                equal(settings.data.pk, pk, 'pk ok');
+                equal(settings.data.value, ev1, 'value ok');
+                equal(settings.data.a, 1, 'extra data ok');
+                this.responseText = 'response-body';  
+            }
+        });            
+            
+       $(fx).find('.new').editable('submit', {
+           data: {a: 1}           
+       });
+       
+       setTimeout(function() {
+           e.remove();
+           start();
+       }, timeout);
+        
+     });  
+     
+     asyncTest("'submit' method: error (single elem)", function () {
+        expect(1);
+        
+        var e = $('<a href="#" class="new" data-type="text" data-pk="123" data-url="error.php" data-name="text">text</a>').appendTo(fx).editable();
+
+       $(fx).find('.new').editable('submit', {
+           error: function() {
+               equal(this[0], e[0], 'error called in correct scope');
+           }
+       });
+       
+       setTimeout(function() {
+           e.remove();
+           start();
+       }, timeout);
+        
+     });           
+     
      
      test("setValue method", function () {
         var e = $('<a href="#" data-name="name" data-type="select" data-url="post.php"></a>').appendTo('#qunit-fixture').editable({
@@ -383,6 +486,7 @@ $(function () {
         e.click();
         var p = tip(e);
         ok(p.is(':visible'), 'container visible');
+        equal(e.text(), 'Empty', 'emptytext shown');
         
         e.editable('destroy');
         
@@ -392,9 +496,81 @@ $(function () {
         ok(!e.hasClass('editable'), 'editable class removed');
         ok(!e.hasClass('editable-click'), 'editable-click class removed');
         
+        equal(e.text(), '', 'emptytext removed');
+             
+        
         e.click();
-        
-        
-     });                                 
+                
+     });
+
+
+    asyncTest("'validate' that change value", function () {
+        expect(3);
+
+        var e = $('<a href="#" data-type="text" data-pk="1" data-url="validate-change-ok" data-name="text">abc</a>').appendTo(fx).editable({
+                validate: function(value) {
+                    return {newValue: 'newval'};
+                }
+            });
+
+
+        $.mockjax({
+            url: 'validate-change-ok',
+            response: function(settings) {
+                equal(settings.data.value, 'newval', 'validate-change-ok');
+                this.responseText = '';
+            }
+        });
+       
+        //change value to pass client side validation
+        e.click();
+        var p = tip(e);
+        p.find('input[type=text]').val('cde');
+        p.find('button[type=submit]').click(); 
+       
+        setTimeout(function() {
+             equal(e.data('editable').value, 'newval', 'new value saved');
+             ok(!p.is(':visible'), 'popover closed');
+
+             e.remove();    
+             start();  
+        }, timeout);                 
+       
+     });                                         
   
+      asyncTest("'validate' that change value and shows message", function () {
+        expect(3);
+
+        var e = $('<a href="#" data-type="text" data-url="validate-change-error" data-name="text">abc</a>').appendTo(fx).editable({
+                validate: function(value) {
+                    return {newValue: 'newval', msg: 'error!'};
+                }
+            });
+
+
+        $.mockjax({
+            url: 'validate-change-error',
+            response: function(settings) {
+                ok(true, 'should not call');
+                this.responseText = '';
+            }
+        });
+       
+        //change value to pass client side validation
+        e.click();
+        var p = tip(e);
+        p.find('input[type=text]').val('cde');
+        p.find('button[type=submit]').click(); 
+       
+        setTimeout(function() {
+            ok(p.is(':visible'), 'popover visible');
+            equal(p.find('input[type=text]').val(), 'newval', 'new value shown in input');
+            equal(p.find('.editable-error-block').text(), 'error!', 'error msg shown');  
+
+            e.remove();    
+            start();  
+        }, timeout);                 
+       
+     }); 
+
 });            

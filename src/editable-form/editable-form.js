@@ -8,7 +8,8 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
 @uses textarea
 **/
 (function ($) {
-
+    "use strict";
+    
     var EditableForm = function (div, options) {
         this.options = $.extend({}, $.fn.editableform.defaults, options);
         this.$div = $(div); //div, containing form. Not form tag. Not editable-element.
@@ -27,12 +28,19 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
             //set initial value
             //todo: may be add check: typeof str === 'string' ? 
             this.value = this.input.str2value(this.options.value); 
+            
+            //prerender: get input.$input
+            this.input.prerender();
         },
         initTemplate: function() {
             this.$form = $($.fn.editableform.template); 
         },
         initButtons: function() {
-            this.$form.find('.editable-buttons').append($.fn.editableform.buttons);
+            var $btn = this.$form.find('.editable-buttons');
+            $btn.append($.fn.editableform.buttons);
+            if(this.options.showbuttons === 'bottom') {
+                $btn.addClass('editable-buttons-bottom');
+            }
         },
         /**
         Renders editableform
@@ -55,6 +63,10 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
             //show loading state
             this.showLoading();            
             
+            //flag showing is form now saving value to server. 
+            //It is needed to wait when closing form.
+            this.isSaving = false;
+            
             /**        
             Fired when rendering starts
             @event rendering 
@@ -66,9 +78,8 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
             this.initInput();
             
             //append input to form
-            this.input.prerender();
             this.$form.find('div.editable-input').append(this.input.$tpl);            
-
+            
             //append form to container
             this.$div.append(this.$form);
             
@@ -93,7 +104,8 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
                     this.error(false);
                     this.input.$input.removeAttr('disabled');
                     this.$form.find('.editable-submit').removeAttr('disabled');
-                    this.input.value2input(this.value);
+                    var value = (this.value === null || this.value === undefined || this.value === '') ? this.options.defaultValue : this.value;
+                    this.input.value2input(value);
                     //attach submit handler
                     this.$form.submit($.proxy(this.submit, this));
                 }
@@ -169,7 +181,7 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
             } else {
                 //convert newline to <br> for more pretty error display
                 if(msg) {
-                    lines = msg.split("\n");
+                    lines = (''+msg).split('\n');
                     for (var i = 0; i < lines.length; i++) {
                         lines[i] = $('<div>').text(lines[i]).html();
                     }
@@ -184,11 +196,21 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
             e.stopPropagation();
             e.preventDefault();
             
-            var error,
-                newValue = this.input.input2value(); //get new value from input
+            //get new value from input
+            var newValue = this.input.input2value(); 
 
-            //validation
-            if (error = this.validate(newValue)) {
+            //validation: if validate returns string or truthy value - means error
+            //if returns object like {newValue: '...'} => submitted value is reassigned to it
+            var error = this.validate(newValue);
+            if ($.type(error) === 'object' && error.newValue !== undefined) {
+                newValue = error.newValue;
+                this.input.value2input(newValue);
+                if(typeof error.msg === 'string') {
+                    this.error(error.msg);
+                    this.showForm();
+                    return;
+                }
+            } else if (error) {
                 this.error(error);
                 this.showForm();
                 return;
@@ -207,31 +229,38 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
                 return;
             } 
 
+            //convert value for submitting to server
+            var submitValue = this.input.value2submit(newValue);
+            
+            this.isSaving = true;
+            
             //sending data to server
-            $.when(this.save(newValue))
+            $.when(this.save(submitValue))
             .done($.proxy(function(response) {
+                this.isSaving = false;
+
                 //run success callback
                 var res = typeof this.options.success === 'function' ? this.options.success.call(this.options.scope, response, newValue) : null;
-                
+
                 //if success callback returns false --> keep form open and do not activate input
                 if(res === false) {
                     this.error(false);
                     this.showForm(false);
                     return;
-                }     
-                
+                }
+
                 //if success callback returns string -->  keep form open, show error and activate input               
                 if(typeof res === 'string') {
                     this.error(res);
                     this.showForm();
                     return;
-                }     
-                
+                }
+
                 //if success callback returns object like {newValue: <something>} --> use that value instead of submitted
                 //it is usefull if you want to chnage value in url-function
                 if(res && typeof res === 'object' && res.hasOwnProperty('newValue')) {
                     newValue = res.newValue;
-                }                            
+                }
 
                 //clear error message
                 this.error(false);   
@@ -241,31 +270,43 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
                 @event save 
                 @param {Object} event event object
                 @param {Object} params additional params
-                @param {mixed} params.newValue submitted value
+                @param {mixed} params.newValue raw new value
+                @param {mixed} params.submitValue submitted value as string
                 @param {Object} params.response ajax response
 
                 @example
                 $('#form-div').on('save'), function(e, params){
                     if(params.newValue === 'username') {...}
-                });                    
-                **/                
-                this.$div.triggerHandler('save', {newValue: newValue, response: response});
+                });
+                **/
+                this.$div.triggerHandler('save', {newValue: newValue, submitValue: submitValue, response: response});
             }, this))
             .fail($.proxy(function(xhr) {
-                this.error(typeof xhr === 'string' ? xhr : xhr.responseText || xhr.statusText || 'Unknown error!'); 
-                this.showForm();  
+                this.isSaving = false;
+
+                var msg;
+                if(typeof this.options.error === 'function') {
+                    msg = this.options.error.call(this.options.scope, xhr, newValue);
+                } else {
+                    msg = typeof xhr === 'string' ? xhr : xhr.responseText || xhr.statusText || 'Unknown error!';
+                }
+
+                this.error(msg);
+                this.showForm();
             }, this));
         },
 
-        save: function(newValue) {
-            //convert value for submitting to server
-            var submitValue = this.input.value2submit(newValue);
-            
+        save: function(submitValue) {
             //try parse composite pk defined as json string in data-pk 
             this.options.pk = $.fn.editableutils.tryParseJson(this.options.pk, true); 
             
             var pk = (typeof this.options.pk === 'function') ? this.options.pk.call(this.options.scope) : this.options.pk,
-            send = !!(typeof this.options.url === 'function' || (this.options.url && ((this.options.send === 'always') || (this.options.send === 'auto' && pk)))),
+            /*
+              send on server in following cases:
+              1. url is function
+              2. url is string AND (pk defined OR send option = always) 
+            */
+            send = !!(typeof this.options.url === 'function' || (this.options.url && ((this.options.send === 'always') || (this.options.send === 'auto' && pk !== null && pk !== undefined)))),
             params;
 
             if (send) { //send to server
@@ -449,8 +490,17 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         **/        
         value: null,
         /**
-        Strategy for sending data on server. Can be <code>auto|always|never</code>.
-        When 'auto' data will be sent on server only if pk defined, otherwise new value will be stored in element.
+        Value that will be displayed in input if original field value is empty (`null|undefined|''`).
+
+        @property defaultValue 
+        @type string|object
+        @default null
+        @since 1.4.6
+        **/        
+        defaultValue: null,
+        /**
+        Strategy for sending data on server. Can be `auto|always|never`.
+        When 'auto' data will be sent on server **only if pk and url defined**, otherwise new value will be stored locally.
 
         @property send 
         @type string
@@ -459,6 +509,8 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         send: 'auto', 
         /**
         Function for client-side validation. If returns string - means validation not passed and string showed as error.
+        Since 1.5.1 you can modify submitted value by returning object from `validate`: 
+        `{newValue: '...'}` or `{newValue: '...', msg: '...'}`
 
         @property validate 
         @type function
@@ -473,7 +525,7 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         validate: null,
         /**
         Success callback. Called when value successfully sent on server and **response status = 200**.  
-        Useful to work with json response. For example, if your backend response can be <code>{success: true}</code>
+        Usefull to work with json response. For example, if your backend response can be <code>{success: true}</code>
         or <code>{success: false, msg: "server error"}</code> you can check it inside this callback.  
         If it returns **string** - means error occured and string is shown as error message.  
         If it returns **object like** <code>{newValue: &lt;something&gt;}</code> - it overwrites value, submitted by user.  
@@ -488,6 +540,25 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         }
         **/          
         success: null,
+        /**
+        Error callback. Called when request failed (response status != 200).  
+        Usefull when you want to parse error response and display a custom message.
+        Must return **string** - the message to be displayed in the error block.
+                
+        @property error 
+        @type function
+        @default null
+        @since 1.4.4
+        @example
+        error: function(response, newValue) {
+            if(response.status === 500) {
+                return 'Service unavailable. Please try later.';
+            } else {
+                return response.responseText;
+            }
+        }
+        **/          
+        error: null,
         /**
         Additional options for submit ajax request.
         List of values: http://api.jquery.com/jQuery.ajax
@@ -504,11 +575,11 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         **/        
         ajaxOptions: null,
         /**
-        Whether to show buttons or not.  
+        Where to show buttons: left(true)|bottom|false  
         Form without buttons is auto-submitted.
 
         @property showbuttons 
-        @type boolean
+        @type boolean|string
         @default true
         @since 1.1.1
         **/         
@@ -532,7 +603,7 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
         @default false
         @since 1.2.0
         **/
-        savenochange: false         
+        savenochange: false
     };   
 
     /*
@@ -558,4 +629,7 @@ Editableform is linked with one of input types, e.g. 'text', 'select' etc.
 
     //error class attached to editable-error-block
     $.fn.editableform.errorBlockClass = 'editable-error';
+    
+    //engine
+    $.fn.editableform.engine = 'jquery';
 }(window.jQuery));

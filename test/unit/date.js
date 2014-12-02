@@ -5,7 +5,7 @@ $(function () {
    module("date", {
         setup: function(){
             fx = $('#async-fixture');
-            dpg = $.fn.datepicker.DPGlobal;
+            dpg = $.fn.bdatepicker.DPGlobal;
             $.support.transition = false;
             mode = $.fn.editable.defaults.mode;
             $.fn.editable.defaults.mode = 'popup';
@@ -133,7 +133,14 @@ $(function () {
         
         equal(frmt(e.data('editable').value, 'yyyy-mm-dd'), d, 'value correct');
         equal(e.text(), dview, 'text correct');
-     });    
+     });
+     
+    test("datepicker options can be defined in data-datepicker string", function () {
+        var  e = $('<a href="#" data-type="date" data-datepicker="{weekStart: 2}" data-pk="1" data-url="/post"></a>').appendTo('#qunit-fixture').editable({
+            });
+       
+        equal(e.data('editable').input.options.datepicker.weekStart, 2, 'options applied correct');
+    });    
      
      
      test("input should contain today if element is empty", function () {
@@ -148,11 +155,12 @@ $(function () {
         ok(!p.is(':visible'), 'popover closed');      
       });
       
-    asyncTest("clear button", function () {
+    asyncTest("clear button (showbuttons: true)", function () {
         var d = '15.05.1984',
             e = $('<a href="#" data-type="date" data-pk="1" data-url="post-date-clear.php">'+d+'</a>').appendTo(fx).editable({
                 format: f,
-                clear: 'abc'
+                clear: 'abc',
+                showbuttons: true
             });
                        
           $.mockjax({
@@ -177,8 +185,50 @@ $(function () {
         //click clear
         clear.click();
         ok(!p.find('td.day.active').length, 'no active day');
+        ok(p.find('.datepicker').is(':visible'), 'datepicker still visible');
 
         p.find('form').submit();
+    
+        setTimeout(function() {          
+           ok(!p.is(':visible'), 'popover closed');
+           equal(e.data('editable').value, null, 'null saved to value');
+           equal(e.text(), e.data('editable').options.emptytext, 'empty text shown');
+           e.remove();    
+           start();  
+        }, timeout); 
+        
+     });        
+
+
+    asyncTest("clear button (showbuttons: false)", function () {
+        var d = '15.05.1984',
+            e = $('<a href="#" data-type="date" data-pk="1" data-url="post-date-clear1.php">'+d+'</a>').appendTo(fx).editable({
+                format: f,
+                clear: 'abc',
+                showbuttons: false
+            });
+                       
+          $.mockjax({
+              url: 'post-date-clear1.php',
+              response: function(settings) {
+                  equal(settings.data.value, '', 'submitted value correct');            
+              }
+          });
+       
+        equal(frmt(e.data('editable').value, 'dd.mm.yyyy'), d, 'value correct');
+            
+        e.click();
+        var p = tip(e);
+        ok(p.find('.datepicker').is(':visible'), 'datepicker exists');
+        
+        equal(frmt(e.data('editable').value, f), d, 'day set correct');
+        equal(p.find('td.day.active').text(), 15, 'day shown correct');
+
+        var clear = p.find('.editable-clear a');
+        equal(clear.text(), 'abc', 'clear link shown');
+
+        //click clear
+        clear.click();
     
         setTimeout(function() {          
            ok(!p.is(':visible'), 'popover closed');

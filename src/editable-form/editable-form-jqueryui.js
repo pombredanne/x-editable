@@ -2,10 +2,16 @@
 Editableform based on jQuery UI
 */
 (function ($) {
+    "use strict";
     
     $.extend($.fn.editableform.Constructor.prototype, {
         initButtons: function() {
-            this.$form.find('.editable-buttons').append($.fn.editableform.buttons);                
+            var $btn = this.$form.find('.editable-buttons');
+            $btn.append($.fn.editableform.buttons);
+            if(this.options.showbuttons === 'bottom') {
+                $btn.addClass('editable-buttons-bottom');
+            }
+                          
             this.$form.find('.editable-submit').button({
                 icons: { primary: "ui-icon-check" },
                 text: false
@@ -20,5 +26,7 @@ Editableform based on jQuery UI
     //error classes
     $.fn.editableform.errorGroupClass = null;
     $.fn.editableform.errorBlockClass = 'ui-state-error';
+    //engine
+    $.fn.editableform.engine = 'jquery-ui';
     
 }(window.jQuery));

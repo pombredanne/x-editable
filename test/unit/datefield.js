@@ -5,7 +5,7 @@ $(function () {
    module("datefield", {
         setup: function(){
             fx = $('#async-fixture');
-            dpg = $.fn.datepicker.DPGlobal;
+            dpg = $.fn.bdatepicker.DPGlobal;
             $.support.transition = false;
             
             mode = $.fn.editable.defaults.mode;
@@ -50,8 +50,8 @@ $(function () {
         equal(p.find('input').val(), d, 'date set correct');
         
         //open picker
-        p.find('span').click();
-        var picker = p.find('span').parent().data().datepicker.picker;
+        p.find('span.add-on').click();
+        var picker = p.find('span.add-on').parent().data().datepicker.picker;
         
         ok(picker.is(':visible'), 'picker shown');
         ok(picker.find('td.day.active').is(':visible'), 'active day is visible');
@@ -105,4 +105,31 @@ $(function () {
         equal(e.text(), dview, 'text correct');
      });    
     
+    
+ 	test("incorrect date", function () {
+        var d = '15.05.1984',
+            e = $('<a href="#" data-type="date" data-pk="1">'+d+'</a>').appendTo('#qunit-fixture').editable({
+                format: f,
+                viewformat: f
+            }),
+            nextD = '16.05.1984';
+        
+        equal(frmt(e.data('editable').value, 'dd.mm.yyyy'), d, 'value correct');
+            
+        e.click();
+        var p = tip(e);
+        ok(p.find('input').is(':visible'), 'input exists');
+        
+        equal(p.find('input').val(), d, 'date set correct');
+        
+        //enter incorrect date
+		p.find('input').val('abcde');
+    
+        //submit
+        p.find('form').submit();
+         
+        ok(!p.is(':visible'), 'popover closed');
+        equal(e.data('editable').value, null, 'date set to null');
+        equal(e.text(), $.fn.editable.defaults.emptytext , 'emptytext shown');            
+     });     
 });
